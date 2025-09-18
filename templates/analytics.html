@@ -288,7 +288,6 @@
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -322,9 +321,16 @@
             const waterLevelChart =
               document.getElementById("water-level-chart");
             if (waterLevelChart && data.data) {
-              Plotly.newPlot("water-level-chart", data.data, data.layout, {
+              // Parse the chart data properly
+              const chartData = data.data;
+              const chartLayout = data.layout || {};
+              Plotly.newPlot("water-level-chart", chartData, chartLayout, {
                 responsive: true,
               });
+            } else {
+              console.error("No chart data received:", data);
+              document.getElementById("water-level-chart").innerHTML =
+                '<div class="text-center text-muted">No chart data available</div>';
             }
           })
           .catch((error) => {
@@ -341,9 +347,16 @@
           .then((data) => {
             const forecastChart = document.getElementById("forecast-chart");
             if (forecastChart && data.data) {
-              Plotly.newPlot("forecast-chart", data.data, data.layout, {
+              // Parse the chart data properly
+              const chartData = data.data;
+              const chartLayout = data.layout || {};
+              Plotly.newPlot("forecast-chart", chartData, chartLayout, {
                 responsive: true,
               });
+            } else {
+              console.error("No forecast chart data received:", data);
+              document.getElementById("forecast-chart").innerHTML =
+                '<div class="text-center text-muted">No forecast data available</div>';
             }
           })
           .catch((error) => {

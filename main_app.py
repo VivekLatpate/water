@@ -564,7 +564,9 @@ def get_chart_data(district_name):
         else:
             chart_data = data_loader.get_water_level_chart(district_name, chart_type, days)
         
-        return chart_data
+        # Return chart data in the format expected by the frontend
+        chart_json = json.loads(chart_data)
+        return jsonify(chart_json)
     except Exception as e:
         print(f"Error getting chart data for {district_name}: {e}")
         return jsonify({"error": "Failed to load chart data"}), 500
@@ -644,18 +646,6 @@ def get_state_overview():
     }
     return jsonify(clean_nan_values(overview))
 
-@app.route('/api/chart/<district_name>')
-def api_get_chart(district_name):
-    """API endpoint to get chart data for a district"""
-    chart_type = request.args.get('type', 'historical')
-    forecast_days = int(request.args.get('days', 30))
-    
-    try:
-        chart_json = data_loader.get_water_level_chart(district_name, chart_type, forecast_days)
-        return jsonify({'chart': chart_json})
-    except Exception as e:
-        print(f"Error getting chart for {district_name}: {e}")
-        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/calculate-budget', methods=['POST'])
 def api_calculate_budget():
@@ -717,4 +707,9 @@ def api_calculate_budget():
 if __name__ == '__main__':
     # Ensure data is loaded when the app starts
     _ = data_loader
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    # Get port from environment variable (for Render deployment)
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Run in production mode for deployment
+    app.run(debug=False, host='0.0.0.0', port=port)
