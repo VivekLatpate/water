@@ -1,0 +1,29 @@
+app:
+  title: "AI for Sustainable Groundwater Management"
+  state: "Maharashtra"
+  default_district: "Buldhana"
+  map_geojson_path: "assets/maharashtra_districts.geojson"
+
+data:
+  groundwater_stations: "data/processed/groundwater_all_districts.csv"
+  rainfall_folder: "data/raw"
+  rainfall_pattern: "rainfall_*.nc"
+  processed_folder: "data/processed"
+  external_folder: "data/external"
+  crops_csv: "data/processed/crops.csv"
+  district_centroids: "data/external/district_centroids.csv"
+  district_name_map: "data/external/district_name_map.csv"
+
+model:
+  artifacts_dir: "models"
+  forecast_model_path: "models/forecast_sarimax.pkl"
+  anomaly_model_path: "models/anomaly_isolation_forest_calibrated.pkl"
+  forecast_horizon_days: 30
+
+anomaly:
+  window_days: 60
+  contamination: 0.05
+
+ui:
+  theme: "light"
+  cache_ttl_sec: 3600
