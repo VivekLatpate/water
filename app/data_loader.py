@@ -542,23 +542,26 @@ class DirectDataLoader:
             return pd.DataFrame()
     
     def get_forecasting_data(self, district: str) -> Dict:
-        """Get forecasting data for a district"""
+        """Get comprehensive forecasting data for a district"""
         try:
-            gw_data = self.groundwater_df[self.groundwater_df['District'] == district].sort_values('Date')
+            from app.models.forecasting import forecast_district
             
-            if gw_data.empty:
+            # Use the advanced forecasting model
+            forecast_result = forecast_district(self.groundwater_df, district, 30)
+            
+            if 'error' in forecast_result:
                 return self._get_fallback_forecast_data(district)
             
-            # Generate realistic forecast data
-            forecast_data = self._generate_forecast_data(gw_data, 30)
+            # Extract forecast data
+            forecast_df = forecast_result['forecast_df']
             
             # Calculate forecast summary
-            if not forecast_data.empty:
+            if not forecast_df.empty:
                 forecast_summary = {
-                    'next_week_avg': forecast_data.head(7)['Forecasted_Water_Level'].mean(),
-                    'next_month_avg': forecast_data['Forecasted_Water_Level'].mean(),
-                    'trend': 'increasing' if forecast_data['Forecasted_Water_Level'].iloc[-1] > forecast_data['Forecasted_Water_Level'].iloc[0] else 'decreasing',
-                    'confidence': 'high' if len(forecast_data) <= 7 else 'medium' if len(forecast_data) <= 30 else 'low'
+                    'next_week_avg': forecast_df.head(7)['Forecasted_Water_Level'].mean(),
+                    'next_month_avg': forecast_df['Forecasted_Water_Level'].mean(),
+                    'trend': 'increasing' if forecast_df['Forecasted_Water_Level'].iloc[-1] > forecast_df['Forecasted_Water_Level'].iloc[0] else 'decreasing',
+                    'confidence': 'high' if forecast_result['accuracy'] > 0.8 else 'medium' if forecast_result['accuracy'] > 0.6 else 'low'
                 }
             else:
                 forecast_summary = {
@@ -569,15 +572,14 @@ class DirectDataLoader:
                 }
             
             return {
-                'forecast_data': forecast_data.to_dict('records') if not forecast_data.empty else [],
+                'forecast_data': forecast_df.to_dict('records') if not forecast_df.empty else [],
                 'forecast_summary': forecast_summary,
-                'model_accuracy': 0.85,
-                'feature_importance': {
-                    'Water_Level': 0.4,
-                    'rainfall_mm': 0.3,
-                    'ndvi_mean': 0.2,
-                    'Seasonal': 0.1
-                }
+                'model_accuracy': forecast_result['accuracy'],
+                'model_type': forecast_result['model_type'],
+                'feature_importance': forecast_result.get('feature_importance', {}),
+                'drivers': forecast_result.get('drivers', {}),
+                'seasonal_forecasts': forecast_result.get('seasonal_forecasts', {}),
+                'forecast_periods': forecast_result.get('forecast_periods', {})
             }
             
         except Exception as e:
