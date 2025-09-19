@@ -39,7 +39,13 @@ def clean_nan_values(obj):
         return {k: clean_nan_values(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [clean_nan_values(elem) for elem in obj]
-    elif pd.isna(obj):
+    elif isinstance(obj, pd.DataFrame):
+        # Convert DataFrame to dict of records for JSON serialization
+        return obj.to_dict('records')
+    elif isinstance(obj, pd.Series):
+        # Convert Series to list for JSON serialization
+        return obj.tolist()
+    elif hasattr(obj, 'dtype') and pd.isna(obj):
         return None
     elif isinstance(obj, (np.int64, np.int32)):
         return int(obj)
@@ -446,14 +452,25 @@ def analytics():
         district_rainfall_data = df_rainfall[df_rainfall['District'] == district_name].sort_values('Date')
         
         if not district_rainfall_data.empty:
-            latest_rainfall = district_rainfall_data.iloc[-1]
-            recent_30_days = district_rainfall_data.tail(30)
-            last_month_data = district_rainfall_data.tail(60).head(30) if len(district_rainfall_data) >= 60 else district_rainfall_data.head(30)
+            # Get recent non-zero rainfall data for more meaningful statistics
+            recent_non_zero = district_rainfall_data[district_rainfall_data['rainfall_mm'] > 0].tail(30)
+            
+            if not recent_non_zero.empty:
+                latest_rainfall = recent_non_zero.iloc[-1]
+                current_month_avg = recent_non_zero.tail(7)['rainfall_mm'].mean()
+                last_month_avg = recent_non_zero.tail(14).head(7)['rainfall_mm'].mean() if len(recent_non_zero) >= 14 else recent_non_zero.head(7)['rainfall_mm'].mean()
+                overall_avg = district_rainfall_data[district_rainfall_data['rainfall_mm'] > 0]['rainfall_mm'].mean()
+            else:
+                # Fallback to latest data even if zero
+                latest_rainfall = district_rainfall_data.iloc[-1]
+                current_month_avg = district_rainfall_data.tail(7)['rainfall_mm'].mean()
+                last_month_avg = district_rainfall_data.tail(14).head(7)['rainfall_mm'].mean() if len(district_rainfall_data) >= 14 else district_rainfall_data.head(7)['rainfall_mm'].mean()
+                overall_avg = district_rainfall_data['rainfall_mm'].mean()
             
             rainfall_data = [{
-                'current_month': latest_rainfall['rainfall_mm'],
-                'last_month': last_month_data['rainfall_mm'].mean() if not last_month_data.empty else 0,
-                'average': district_rainfall_data['rainfall_mm'].mean(),
+                'current_month': current_month_avg,
+                'last_month': last_month_avg,
+                'average': overall_avg,
                 'date': latest_rainfall['Date'].strftime('%Y-%m-%d')
             }]
         
@@ -463,10 +480,22 @@ def analytics():
         
         if not district_ndvi_data.empty:
             latest_ndvi = district_ndvi_data.iloc[-1]
+            
+            # Calculate seasonal NDVI values
+            district_ndvi_data['month'] = pd.to_datetime(district_ndvi_data['Date']).dt.month
+            
+            # Peak season (monsoon months: June-September)
+            peak_season_data = district_ndvi_data[district_ndvi_data['month'].isin([6, 7, 8, 9])]
+            peak_season_ndvi = peak_season_data['ndvi_mean'].max() if not peak_season_data.empty else district_ndvi_data['ndvi_mean'].max()
+            
+            # Dry season (pre-monsoon months: March-May)
+            dry_season_data = district_ndvi_data[district_ndvi_data['month'].isin([3, 4, 5])]
+            dry_season_ndvi = dry_season_data['ndvi_mean'].min() if not dry_season_data.empty else district_ndvi_data['ndvi_mean'].min()
+            
             ndvi_data = [{
                 'current_ndvi': latest_ndvi['ndvi_mean'],
-                'peak_season': district_ndvi_data['ndvi_mean'].max(),
-                'dry_season': district_ndvi_data['ndvi_mean'].min(),
+                'peak_season': peak_season_ndvi,
+                'dry_season': dry_season_ndvi,
                 'date': latest_ndvi['Date'].strftime('%Y-%m-%d')
             }]
         
@@ -474,10 +503,22 @@ def analytics():
         district_overview['rainfall_data'] = rainfall_data
         district_overview['ndvi_data'] = ndvi_data
         
+        # Clean the forecasting data but preserve seasonal forecasts structure
+        cleaned_forecasting_data = clean_nan_values(forecasting_data)
+        
+        # Ensure seasonal forecasts are properly structured for JavaScript
+        if 'seasonal_forecasts' in cleaned_forecasting_data:
+            seasonal_forecasts = cleaned_forecasting_data['seasonal_forecasts']
+            # Convert any remaining pandas objects to lists
+            for season in ['monsoon', 'post_monsoon']:
+                if season in seasonal_forecasts and 'forecast' in seasonal_forecasts[season]:
+                    if hasattr(seasonal_forecasts[season]['forecast'], 'tolist'):
+                        seasonal_forecasts[season]['forecast'] = seasonal_forecasts[season]['forecast'].tolist()
+        
         return render_template('analytics.html',
                              district=district_name,
                              district_data=clean_nan_values(district_overview),
-                             forecasting_data=clean_nan_values(forecasting_data))
+                             forecasting_data=cleaned_forecasting_data)
     except Exception as e:
         print(f"Error loading analytics page: {e}")
         import traceback
@@ -575,51 +616,45 @@ def get_chart_data(district_name):
 def get_feature_importance(district_name):
     """API endpoint to get feature importance data for a district"""
     try:
-        from app.utils.realistic_feature_importance import compute_realistic_feature_importance
+        # Get forecasting data which includes feature importance
+        forecasting_data = data_loader.get_forecasting_data(district_name)
+        feature_importance = forecasting_data.get('feature_importance', {})
         
-        # Get groundwater data with features
-        gw_data = data_loader.groundwater_df
-        rainfall_data = data_loader.rainfall_df
+        if 'error' in feature_importance:
+            return jsonify({"error": feature_importance["error"]}), 400
         
-        # Compute feature importance
-        importance_data = compute_realistic_feature_importance(
-            gw_data, rainfall_data, district_name
-        )
+        # Extract feature importance data
+        importance_dict = feature_importance.get('feature_importance', {})
         
-        # Create a simple bar chart for feature importance
-        if "error" not in importance_data:
-            # Filter out metadata fields for the chart
-            chart_data = {k: v for k, v in importance_data.items() 
-                         if k not in ["Model R² (CV)", "R² Std Dev", "Data Points", "Features Used"]}
-            
-            # Create Plotly chart data
-            features = list(chart_data.keys())
-            values = list(chart_data.values())
-            
-            # Sort by importance
-            sorted_data = sorted(zip(features, values), key=lambda x: x[1], reverse=True)
-            features, values = zip(*sorted_data)
-            
-            chart_json = {
-                "data": [{
-                    "x": list(values),
-                    "y": list(features),
-                    "type": "bar",
-                    "orientation": "h",
-                    "marker": {"color": "#2563eb"}
-                }],
-                "layout": {
-                    "title": f"Feature Importance - {district_name}",
-                    "xaxis": {"title": "Importance Score"},
-                    "yaxis": {"title": "Features"},
-                    "height": 400,
-                    "margin": {"l": 150, "r": 50, "t": 50, "b": 50}
-                }
+        if not importance_dict:
+            return jsonify({"error": "No feature importance data available"}), 400
+        
+        # Create Plotly chart data
+        features = list(importance_dict.keys())
+        values = list(importance_dict.values())
+        
+        # Sort by importance
+        sorted_data = sorted(zip(features, values), key=lambda x: x[1], reverse=True)
+        features, values = zip(*sorted_data)
+        
+        chart_json = {
+            "data": [{
+                "x": list(values),
+                "y": list(features),
+                "type": "bar",
+                "orientation": "h",
+                "marker": {"color": "#2563eb"}
+            }],
+            "layout": {
+                "title": f"Feature Importance - {district_name}",
+                "xaxis": {"title": "Importance Score"},
+                "yaxis": {"title": "Features"},
+                "height": 400,
+                "margin": {"l": 150, "r": 50, "t": 50, "b": 50}
             }
-            
-            return json.dumps(chart_json, cls=PlotlyJSONEncoder)
-        else:
-            return jsonify({"error": importance_data["error"]}), 400
+        }
+        
+        return json.dumps(chart_json, cls=PlotlyJSONEncoder)
             
     except Exception as e:
         print(f"Error getting feature importance for {district_name}: {e}")
