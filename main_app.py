@@ -740,11 +740,17 @@ def api_calculate_budget():
     }))
 
 if __name__ == '__main__':
-    # Ensure data is loaded when the app starts
-    _ = data_loader
-    
-    # Get port from environment variable (for Render deployment)
-    port = int(os.environ.get('PORT', 5000))
-    
-    # Run in production mode for deployment
-    app.run(debug=False, host='0.0.0.0', port=port)
+    try:
+        # Ensure data is loaded when the app starts
+        _ = data_loader
+        print("✅ Application initialized successfully")
+        
+        # Get port from environment variable (for Render deployment)
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Run in production mode for deployment
+        app.run(debug=False, host='0.0.0.0', port=port)
+    except Exception as e:
+        print(f"❌ Error starting application: {e}")
+        import traceback
+        traceback.print_exc()

@@ -8,9 +8,9 @@ from datetime import datetime
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from app.utils.data_loader import load_groundwater_data
-from app.utils.anomaly_calibration import calibrate_anomaly_detector
-from app.models.anomaly import save_anomaly_detector
+# from app.utils.data_loader import load_groundwater_data
+# from app.utils.anomaly_calibration import calibrate_anomaly_detector
+# from app.models.anomaly import save_anomaly_detector
 
 def main():
     """Train improved anomaly detector with calibration."""

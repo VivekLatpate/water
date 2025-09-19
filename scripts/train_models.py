@@ -8,9 +8,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from app.utils.data_loader import load_groundwater_data
-from app.utils.features import build_monthly_features
-from app.models.forecasting import train_per_district, save_models
+# from app.utils.data_loader import load_groundwater_data
+# from app.utils.features import build_monthly_features
+# from app.models.forecasting import train_per_district, save_models
 
 
 def main():
