@@ -3,8 +3,8 @@ services:
     name: ai-groundwater-management
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main_app.py
+    buildCommand: pip install --upgrade pip && pip install -r requirements-minimal.txt
+    startCommand: gunicorn main_app:app
     envVars:
       - key: FLASK_ENV
         value: production

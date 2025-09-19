@@ -1,11 +1,25 @@
 """
-Forecasting models for groundwater level prediction
+Advanced Forecasting models for groundwater level prediction
+SARIMAX-based time series forecasting with seasonal predictions
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
+
+try:
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    from statsmodels.tsa.seasonal import seasonal_decompose
+    from statsmodels.tsa.stattools import adfuller
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.metrics import mean_squared_error, r2_score
+    STATSMODELS_AVAILABLE = True
+except ImportError:
+    STATSMODELS_AVAILABLE = False
+    print("Warning: statsmodels not available. Using simplified forecasting.")
 
 def _prepare_series(df: pd.DataFrame, district: str) -> pd.Series:
     """Prepare time series data for a district"""
